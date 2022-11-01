@@ -1,13 +1,8 @@
 import { Link } from "react-router-dom";
-
-interface Article {
-  name: string;
-  title: string;
-  content: string[];
-}
+import { Article } from "../types/types";
 
 interface Props {
-  articles: Article[]
+  articles: Article[];
 }
 
 const ArticlesList = ({ articles }: Props) => {
@@ -22,7 +17,7 @@ const ArticlesList = ({ articles }: Props) => {
         ))
       }
     </>
-  )
-}
+  );
+};
 
 export default ArticlesList;
