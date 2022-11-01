@@ -1,0 +1,8 @@
+{
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "editor.tabSize": 2,
+    "workbench.tree.indent": 4,
+    "editor.detectIndentation": false,
+    "typescript.validate.enable": true,
+}
