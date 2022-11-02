@@ -6,6 +6,7 @@ export interface Comment {
 export interface ArticleInformation {
   upvotes: number;
   comments: Comment[];
+  canUpvote: boolean;
 }
 
 export interface Article {

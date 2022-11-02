@@ -1,5 +1,6 @@
 import axios from "axios";
 import React, { FormEvent, useState } from "react";
+import { useUser } from "../hooks/useUser";
 import { ArticleInformation } from "../types/types";
 
 interface Props {
@@ -11,12 +12,16 @@ const AddCommentForm = ({ articleName, onArticleUpdated }: Props) => {
   const [name, setName] = useState('');
   const [commentText, setCommentText] = useState('');
 
+  const { user } = useUser();
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    const token = user && await user.getIdToken();
+    const headers = token ? { authToken: token } : {};
     const response = await axios.post(`/api/articles/${articleName}/comments`, {
       postedBy: name,
       text: commentText,
-    });
+    }, { headers });
     const updatedArticle = response.data;
     onArticleUpdated(updatedArticle);
     setName('');
@@ -27,14 +32,7 @@ const AddCommentForm = ({ articleName, onArticleUpdated }: Props) => {
   return (
     <div id="add-comment-form">
       <h3>Add a comment</h3>
-      <label htmlFor="name">Name:</label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        type="text"
-        name="name"
-      />
-      <label htmlFor="comment">Comment:</label>
+      {user && <p>You are posting as {user.email}</p>}
       <textarea
         value={commentText}
         onChange={(e) => setCommentText(e.target.value)}
