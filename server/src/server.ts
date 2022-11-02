@@ -1,5 +1,8 @@
+import fs from 'fs';
+import admin from 'firebase-admin';
 import express, { Request, Response } from 'express';
 import { connectToDb, db } from './db';
+
 
 interface Comment {
   postedBy: string;
@@ -10,56 +13,94 @@ interface Article {
   name: string;
   upvotes: number;
   comments: Comment[];
+  upvoteIds: string[];
+  canUpvote: boolean;
 }
+
+export interface UserRequest extends Request {
+  user?: any;
+}
+
+const credentials = JSON.parse(
+  fs.readFileSync('./credentials.json', 'utf-8')
+);
+
+admin.initializeApp({
+  credential: admin.credential.cert(credentials),
+});
 
 const app = express();
 app.use(express.json());
 
-app.get('/api/articles', async (request: Request, response: Response) => {
+app.use(async (request: UserRequest, response, next) => {
+  const { authToken } = request.headers;
 
-  const articles = await db.collection('articles').find() as unknown as Article[];
-
-  if (articles.length > 0) {
-    response.json(articles);
-  } else {
-    response.send('No articles found');
+  if (authToken) {
+    try {
+      request.user = await admin.auth().verifyIdToken(String(authToken));
+    } catch {
+      return response.sendStatus(400);
+    }
   }
+
+  request.user = request.user || {};
+
+  next();
 });
 
-app.get('/api/articles/:name', async (request: Request, response: Response) => {
+app.get('/api/articles/:name', async (request: UserRequest, response: Response) => {
   const { name } = request.params;
+  const { uid } = request.user;
 
   const article = await db.collection('articles').findOne({ name }) as unknown as Article;
 
   if (article) {
+    const upvoteIds = article.upvoteIds || [];
+    article.canUpvote = uid && !upvoteIds.includes(uid);
     response.json(article);
   } else {
     response.sendStatus(404);
   }
 });
 
-app.put('/api/articles/:name/upvote', async (request: Request, response: Response) => {
+app.use((request: UserRequest, response, next) => {
+  if (request.user) {
+    next();
+  } else {
+    response.sendStatus(401);
+  }
+});
+
+app.put('/api/articles/:name/upvote', async (request: UserRequest, response: Response) => {
   const { name } = request.params;
+  const { uid } = request.user;
 
-  await db.collection('articles').updateOne({ name }, {
-    $inc: { upvotes: 1 },
-  });
-
-  const article = await db.collection('articles').findOne({ name });
+  const article: Article = await db.collection('articles').findOne({ name }) as unknown as Article;
 
   if (article) {
-    response.json(article);
+    const upvoteIds = article.upvoteIds || [];
+    const canUpvote = uid && !upvoteIds.includes(uid);
+
+    if (canUpvote) {
+      await db.collection('articles').updateOne({ name }, {
+        $inc: { upvotes: 1 },
+        $push: { upvoteIds: uid }
+      });
+    }
+    const updatedArticle: Article = await db.collection('articles').findOne({ name }) as unknown as Article;
+    response.json(updatedArticle);
   } else {
     response.send('That article does not exist.');
   }
 });
 
-app.post('/api/articles/:name/comments', async (request: Request, response: Response) => {
+app.post('/api/articles/:name/comments', async (request: UserRequest, response: Response) => {
   const { name } = request.params;
-  const { postedBy, text } = request.body;
+  const { text } = request.body;
+  const { email } = request.user;
 
   await db.collection('articles').updateOne({ name }, {
-    $push: { comments: { postedBy, text } },
+    $push: { comments: { postedBy: email, text } },
   });
 
   const article = await db.collection('articles').findOne({ name });
